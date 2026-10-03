@@ -1,26 +1,32 @@
 name: Build APK
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
-    
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Check files
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install system deps
       run: |
-        echo "=== Файлы в репозитории ==="
-        ls -la
-        echo "=== Строк в Bunburtale.py ==="
+        sudo apt update
+        sudo apt install -y git zip unzip openjdk-17-jdk \
+          autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
+          libncursesw5-dev cmake libffi-dev libssl-dev
+
+    - name: Install buildozer
+      run: pip install buildozer cython==0.29.36
+
+    - name: Verify
+      run: |
+        python --version
+        buildozer --version
         wc -l Bunburtale.py
-    
+
     - name: Create buildozer.spec
       run: |
         cat > buildozer.spec << 'EOF'
@@ -43,27 +49,26 @@ jobs:
         android.accept_sdk_license = True
         android.permissions = VIBRATE
         p4a.bootstrap = sdl2
-        
+
         [buildozer]
         log_level = 2
         warn_on_root = 1
         EOF
-    
+
     - name: Build APK
       run: |
-        buildozer -v android debug 2>&1 | tee build.log
-    
-    - name: Show log tail
+        set -e
+        yes | buildozer android debug 2>&1 | tee build.log
+        ls -la bin/
+
+    - name: Show last log
       if: always()
-      run: |
-        echo "=== Последние 80 строк лога ==="
-        tail -80 build.log || true
-    
+      run: tail -100 build.log || true
+
     - name: Upload APK
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: echo-location-apk
+        name: apk
         path: bin/*.apk
-        retention-days: 30
         if-no-files-found: warn
