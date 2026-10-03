@@ -1,0 +1,68 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # кнопка для ручного запуска
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y python3-pip build-essential git zip unzip \
+          openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+    
+    - name: Install buildozer
+      run: |
+        pip install buildozer cython==0.29.36
+    
+    - name: Create buildozer.spec
+      run: |
+        cat > buildozer.spec << 'EOF'
+        [app]
+        title = Эхо-Локация
+        package.name = echolocation
+        package.domain = org.echo
+        source.dir = .
+        source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf
+        source.exclude_dirs = bin,.buildozer,__pycache__
+        version = 1.0.0
+        source.main = Bunburtale.py
+        requirements = python3,pygame
+        orientation = landscape
+        fullscreen = 1
+        android.api = 31
+        android.minapi = 24
+        android.ndk_api = 24
+        android.archs = arm64-v8a
+        android.accept_sdk_license = True
+        android.permissions = VIBRATE
+
+        [buildozer]
+        log_level = 2
+        warn_on_root = 1
+        EOF
+    
+    - name: Build APK
+      run: |
+        buildozer -v android debug
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: echo-location-apk
+        path: bin/*.apk
+        retention-days: 30
